@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Nối THÚ - BY ĐỨC THIỆN</title>
+    <style>
+        :root { --bg: #1a1a2e; --cell: #16213e; --text: #e94560; --neon: #00fff2; }
+        body { margin: 0; background: var(--bg); color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; overflow: hidden; }
+        
+        #header { margin-bottom: 15px; text-align: center; z-index: 10; }
+        .stat-box { display: inline-block; background: rgba(255,255,255,0.1); padding: 8px 20px; border-radius: 20px; margin: 0 10px; border: 1px solid var(--text); }
+        
+        #game-container { position: relative; padding: 15px; background: #0f3460; border-radius: 12px; box-shadow: 0 0 40px rgba(0,0,0,0.6); }
+        #game-board { display: grid; gap: 4px; }
+        
+        .cell {
+            width: 45px; height: 55px; background: var(--cell); border-radius: 6px;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 28px; cursor: pointer; transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            user-select: none; border: 2px solid transparent; position: relative;
+        }
+        .cell:hover { transform: scale(1.1); background: #1f4068; z-index: 5; }
+        .cell.selected { border-color: var(--neon); box-shadow: 0 0 15px var(--neon); background: #1b3a4b; }
+        .cell.empty { opacity: 0; cursor: default; pointer-events: none; }
+        
+        #line-canvas { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 100; }
+        
+        .controls { margin-top: 20px; display: flex; gap: 15px; }
+        button { 
+            padding: 12px 25px; background: var(--text); border: none; color: white; 
+            cursor: pointer; border-radius: 8px; font-weight: bold; text-transform: uppercase;
+            transition: 0.3s; border-bottom: 4px solid #951f33;
+        }
+        button:hover { background: #ff4d6d; transform: translateY(-2px); border-bottom-width: 2px; margin-bottom: 2px; }
+        button:active { transform: translateY(2px); border-bottom-width: 0; margin-bottom: 4px; }
+        button.secondary { background: #4ecca3; border-bottom-color: #3d997a; }
+    </style>
+</head>
+<body>
+
+<div id="header">
+    <h1 style="margin: 0 0 10px 0; letter-spacing: 2px; color: var(--neon);">NỐI THÚ _ BY ĐỨC THIỆN</h1>
+    <div class="stat-box">ĐIỂM: <span id="score" style="color: var(--text)">0</span></div>
+    <div class="stat-box">THỜI GIAN: <span id="timer" style="color: var(--neon)">100</span>s</div>
+</div>
+
+<div id="game-container">
+    <div id="game-board"></div>
+    <canvas id="line-canvas"></canvas>
+</div>
+
+<div class="controls">
+    <button class="secondary" onclick="shuffleBoard()">XÁO BÀI (SHUFFLE)</button>
+    <button onclick="resetGame()">CHƠI MỚI</button>
+</div>
+
+<script>
+const ROWS = 8;
+const COLS = 12;
+const animals = ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐔'];
+let board = [];
+let selected = null;
+let score = 0;
+let timeLeft = 100;
+let timerInterval = null;
+
+const boardEl = document.getElementById('game-board');
+const canvas = document.getElementById('line-canvas');
+const ctx = canvas.getContext('2d');
+
+function initGame() {
+    // Reset thông số
+    if (timerInterval) clearInterval(timerInterval);
+    score = 0;
+    timeLeft = 100;
+    selected = null;
+    document.getElementById('score').innerText = score;
+    document.getElementById('timer').innerText = timeLeft;
+
+    // Tạo mảng cặp icon
+    let totalCells = ROWS * COLS;
+    let icons = [];
+    for(let i=0; i < totalCells/2; i++) {
+        let icon = animals[Math.floor(Math.random() * animals.length)];
+        icons.push(icon, icon);
+    }
+    icons.sort(() => Math.random() - 0.5);
+
+    // Tạo board
+    boardEl.style.gridTemplateColumns = `repeat(${COLS}, 45px)`;
+    for(let r=0; r<ROWS; r++) {
+        board[r] = [];
+        for(let c=0; c<COLS; c++) {
+            board[r][c] = icons.pop();
+        }
+    }
+    
+    render();
+    // Đợi render xong để lấy kích thước canvas chuẩn
+    setTimeout(() => {
+        canvas.width = boardEl.offsetWidth;
+        canvas.height = boardEl.offsetHeight;
+    }, 100);
+    
+    startTimer();
+}
+
+function render() {
+    boardEl.innerHTML = '';
+    for(let r=0; r<ROWS; r++) {
+        for(let c=0; c<COLS; c++) {
+            const div = document.createElement('div');
+            div.className = `cell ${board[r][c] === null ? 'empty' : ''}`;
+            if (selected && selected.r === r && selected.c === c) div.classList.add('selected');
+            div.innerHTML = board[r][c] || '';
+            div.onclick = () => handleSelect(r, c);
+            boardEl.appendChild(div);
+        }
+    }
+}
+
+function handleSelect(r, c) {
+    if (board[r][c] === null) return;
+
+    if (!selected) {
+        selected = {r, c};
+    } else {
+        if (selected.r === r && selected.c === c) {
+            selected = null;
+        } else if (board[selected.r][selected.c] === board[r][c]) {
+            let path = findPath(selected.r, selected.c, r, c);
+            if (path) {
+                drawLink(path);
+                board[selected.r][selected.c] = null;
+                board[r][c] = null;
+                score += 10;
+                document.getElementById('score').innerText = score;
+                selected = null;
+                setTimeout(() => { 
+                    ctx.clearRect(0, 0, canvas.width, canvas.height); 
+                    render(); 
+                    checkWin();
+                }, 250);
+            } else {
+                selected = {r, c};
+            }
+        } else {
+            selected = {r, c};
+        }
+    }
+    render();
+}
+
+function findPath(r1, c1, r2, c2) {
+    let queue = [{r: r1, c: c1, dir: -1, turns: 0, path: [{r: r1, c: c1}]}];
+    let visited = new Map();
+
+    while(queue.length > 0) {
+        let curr = queue.shift();
+        if (curr.turns > 2) continue;
+        if (curr.r === r2 && curr.c === c2) return curr.path;
+
+        const dirs = [[0,1], [0,-1], [1,0], [-1,0]];
+        for(let i=0; i<4; i++) {
+            let nr = curr.r + dirs[i][0];
+            let nc = curr.c + dirs[i][1];
+            
+            if (nr >= -1 && nr <= ROWS && nc >= -1 && nc <= COLS) {
+                let nextTurns = (curr.dir !== -1 && curr.dir !== i) ? curr.turns + 1 : curr.turns;
+                if (nextTurns > 2) continue;
+
+                if ((nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS && board[nr][nc] === null) || 
+                    (nr === r2 && nc === c2) || 
+                    nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) {
+                    
+                    let key = `${nr},${nc},${i}`;
+                    if (!visited.has(key) || visited.get(key) >= nextTurns) {
+                        visited.set(key, nextTurns);
+                        queue.push({r: nr, c: nc, dir: i, turns: nextTurns, path: [...curr.path, {r: nr, c: nc}]});
+                    }
+                }
+            }
+        }
+    }
+    return null;
+}
+
+function drawLink(path) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = '#00fff2';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = '#00fff2';
+    
+    ctx.beginPath();
+    path.forEach((p, i) => {
+        let x = p.c * 49 + 24.5; // (cell width 45 + gap 4)
+        let y = p.r * 59 + 29.5; // (cell height 55 + gap 4)
+        if(i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+}
+
+function startTimer() {
+    timerInterval = setInterval(() => {
+        if (timeLeft > 0) {
+            timeLeft--;
+            document.getElementById('timer').innerText = timeLeft;
+        } else {
+            clearInterval(timerInterval);
+            alert("HẾT GIỜ! Điểm của bạn là: " + score);
+            resetGame();
+        }
+    }, 1000);
+}
+
+function shuffleBoard() {
+    let icons = board.flat().filter(x => x !== null);
+    if (icons.length === 0) return;
+    icons.sort(() => Math.random() - 0.5);
+    for(let r=0; r<ROWS; r++) {
+        for(let c=0; c<COLS; c++) {
+            if(board[r][c] !== null) board[r][c] = icons.pop();
+        }
+    }
+    render();
+}
+
+function checkWin() {
+    if (board.flat().every(cell => cell === null)) {
+        clearInterval(timerInterval);
+        alert("CHÚC MỪNG! Bạn đã dọn sạch bảng với " + score + " điểm!");
+        resetGame();
+    }
+}
+
+function resetGame() {
+    initGame();
+}
+
+// Khởi chạy khi tải trang
+window.onload = initGame;
+</script>
+</body>
+</html>
