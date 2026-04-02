@@ -69,7 +69,7 @@
     <h1>TRÒ CHS NỐI THÚ _ THIENR_K</h1>
     <div class="stats-container">
         <div class="stat-box">⭐ <span id="score">0</span></div>
-        <div class="stat-box">⏳ <span id="timer">125</span>s</div>
+        <div class="stat-box">⏳ <span id="timer">120</span>s</div>
     </div>
 </div>
 
@@ -85,10 +85,10 @@
 
 <script>
 // Tăng số lượng thú: 10 hàng x 10 cột = 100 ô (nhiều hơn bản cũ)
-const ROWS = 10; 
-const COLS = 10; 
-const animals = ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐤', '🦉', '🦄'];
-let board = [], selected = null, score = 0, timeLeft = 125, timerInterval = null;
+const ROWS = 11; 
+const COLS = 11; 
+const animals = ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐤', '🦉', '🦄','🐲','🐟'];
+let board = [], selected = null, score = 0, timeLeft = 120, timerInterval = null;
 
 const boardEl = document.getElementById('game-board');
 const canvas = document.getElementById('line-canvas');
@@ -96,7 +96,7 @@ const ctx = canvas.getContext('2d');
 
 function initGame() {
     if (timerInterval) clearInterval(timerInterval);
-    score = 0; timeLeft = 125; selected = null;
+    score = 0; timeLeft = 120; selected = null;
     document.getElementById('score').innerText = score;
     document.getElementById('timer').innerText = timeLeft;
 
